@@ -1,6 +1,14 @@
 {
   "YdJ0DTmXAUabnHVf": {
-    "name": "My workflow",
-    "file_path": "workflows/My workflow.json"
+    "name": "github-backup",
+    "file_path": "workflows/github-backup.json"
+  },
+  "0qUCHgkOlehTa6aR": {
+    "name": "facebook-automation",
+    "file_path": "workflows/facebook-automation.json"
+  },
+  "vQet7tCZKBk74XTd": {
+    "name": "Generation-of-Report",
+    "file_path": "workflows/Generation-of-Report.json"
   }
 }
