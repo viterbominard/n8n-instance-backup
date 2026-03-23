@@ -1,0 +1,1302 @@
+{
+  "updatedAt": "2026-03-23T14:28:19.564Z",
+  "createdAt": "2026-03-23T14:27:44.469Z",
+  "id": "vQet7tCZKBk74XTd",
+  "name": "Generation-of-Report",
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 🏫 CLSU Live Row Router — v3\n**n8n 2.9.4 | Google Sheets native**\n\n### Concept:\nThis workflow does NOT generate a new file.\nInstead it **writes rows directly into your Google Sheets template**.\n\n### What happens when you add a row to Data Input:\n1. **Trigger fires** — Google Sheets detects the new row\n2. **Validate** — checks the row has a date\n3. **Check the date** — determines which quarter it belongs to\n4. **Route to Q sheet** — appends to Q1/Q2/Q3/Q4 tab automatically\n5. **Append to Monthly** — also writes it into Monthly Report\n6. **Append to Date Range** — also writes it into Date Range tab\n7. **Update Summary** — refreshes SUMIF totals in Summary Report\n\n### Year-End Reset:\nRun the separate Year-End workflow manually on Dec 31.\nIt archives the year, clears all Q data rows, and resets\nyear labels — the template structure is fully preserved.",
+        "height": 564,
+        "width": 440,
+        "color": 5
+      },
+      "id": "213f08bd-282f-4869-aabe-7bd9f8d14027",
+      "name": "📋 HOW THIS WORKS",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -80,
+        -96
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## ✅ Setup Steps\n\n**1. Upload your blank template to Google Sheets**\n→ File → Import → your blank xlsx\n→ Copy the Sheet ID from the URL bar\n   (the long string between /d/ and /edit)\n→ Replace ALL instances of YOUR_SHEET_ID below\n\n**2. Data Input tab — Row 4 must be headers:**\n`Date | Type | Item | Quantity | Unit | Price | Amount Paid | Payor | Mode of Payment | OR Number/Billing No. | Date Issued | Issued by | Source`\n\n**3. Q sheet tabs must exist:**\n→ Q1 Report, Q2 Report, Q3 Report, Q4 Report\n→ Row 5 = column headers, Row 6+ = data area\n\n**4. Connect Google Sheets OAuth2 credential**\n→ Credentials → New → Google Sheets OAuth2\n→ Apply to all Sheets nodes\n\n**5. Activate the workflow** (toggle top right)\n→ It will now auto-trigger on every new row",
+        "height": 496,
+        "width": 440,
+        "color": 3
+      },
+      "id": "e8a1980b-9e84-4d3c-b679-a3419567753f",
+      "name": "🔧 SETUP",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        384,
+        -96
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 🔄 Year-End Reset\n\nAt the end of each year, run the **Year-End Reset** workflow.\n(It's a separate workflow — import it separately.)\n\n**What it does:**\n✅ Archives this year as a Google Sheets copy\n✅ Clears data rows in Q1, Q2, Q3, Q4, Monthly, Date Range\n✅ Updates year labels (e.g., 2025 → 2026)\n✅ Preserves: headers, formulas, formatting, dropdowns\n\n**Result:** Same Sheet becomes next year's live template\nautomatically — no manual reformatting needed.",
+        "height": 284,
+        "width": 440,
+        "color": 6
+      },
+      "id": "6a0fd0aa-e79f-4de5-bc28-6b6c2b71a856",
+      "name": "🗓️ YEAR-END RESET INFO",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        400,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-date",
+              "leftValue": "={{ $json.Date }}",
+              "rightValue": "",
+              "operator": {
+                "type": "dateTime",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "675730de-a12c-4fb4-b1ee-95dda89da893",
+      "name": "✅ Has Valid Date?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1200,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// ============================================================\n// DETERMINE QUARTER, MONTH, AND TARGET Q SHEET\n// Runs once per new row (runOnceForEachItem)\n// ============================================================\n\nconst row = $input.item.json;\n\n// Parse the date\nconst rawDate = row['Date'];\nlet d = new Date(rawDate);\n\n// Fallback: try MM/DD/YYYY format\nif (isNaN(d.getTime())) {\n  const p = String(rawDate).split('/');\n  if (p.length === 3) {\n    d = new Date(`${p[2]}-${p[0].padStart(2,'0')}-${p[1].padStart(2,'0')}`);\n  }\n}\nif (isNaN(d.getTime())) {\n  throw new Error(`Cannot parse date: ${rawDate}`);\n}\n\nconst month = d.getMonth();   // 0 = Jan … 11 = Dec\nconst year  = d.getFullYear();\n\n// Quarter → sheet name\nlet quarter, qSheet;\nif      (month <= 2)  { quarter = 'Q1'; qSheet = 'Q1 Report'; }\nelse if (month <= 5)  { quarter = 'Q2'; qSheet = 'Q2 Report'; }\nelse if (month <= 8)  { quarter = 'Q3'; qSheet = 'Q3 Report'; }\nelse                  { quarter = 'Q4'; qSheet = 'Q4 Report'; }\n\nconst MONTHS = ['January','February','March','April','May','June',\n                'July','August','September','October','November','December'];\n\n// Standard date string MM/DD/YYYY\nconst dateStr =\n  `${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}/${year}`;\n\nreturn {\n  json: {\n    // Pass all original columns through\n    Date:                row['Date']               || '',\n    Type:                row['Type']               || '',\n    Item:                row['Item']               || '',\n    Quantity:            row['Quantity']            || '',\n    Unit:                row['Unit']               || '',\n    Price:               row['Price']              || '',\n    'Amount Paid':       row['Amount Paid']        || '',\n    Payor:               row['Payor']              || '',\n    'Mode of Payment':   row['Mode of Payment']    || '',\n    'OR Number':         row['OR Number/\\nBilling No.'] || row['OR Number'] || '',\n    'Date Issued':       row['Date Issued']        || '',\n    'Issued by':         row['Issued by']          || '',\n    Source:              row['Source']             || '',\n\n    // Routing metadata\n    _quarter:    quarter,\n    _qSheet:     qSheet,\n    _month:      MONTHS[month],\n    _year:       year,\n    _dateStr:    dateStr\n  }\n};"
+      },
+      "id": "0467a0c8-1ba6-4d78-8374-1b22ee4f223f",
+      "name": "📅 Get Quarter & Month",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1488,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json._quarter }}",
+                    "rightValue": "Q1",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "603f7e68-4f6e-48f2-b299-fc7690f80582"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Q1"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json._quarter }}",
+                    "rightValue": "Q2",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "6dfdeabc-a9eb-4ca8-86fc-7097a3865b40"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Q2"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json._quarter }}",
+                    "rightValue": "Q3",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "86fc6d24-2696-446d-b6b0-69defb37dde0"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Q3"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json._quarter }}",
+                    "rightValue": "Q4",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "edb21d41-74e3-4059-baf6-ad530c38071f"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Q4"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "bfb5a350-5a99-4fe9-b533-dd79169749c5",
+      "name": "🔀 Route by Quarter",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        1728,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "10_mBqP8b1431MugGkhKv6HcqHoLyNQzN7uKcgTjln0M",
+          "mode": "list",
+          "cachedResultName": "Sales_Remittance_Report_v4_blank",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10_mBqP8b1431MugGkhKv6HcqHoLyNQzN7uKcgTjln0M/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 255969581,
+          "mode": "list",
+          "cachedResultName": "Q1 Report",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10_mBqP8b1431MugGkhKv6HcqHoLyNQzN7uKcgTjln0M/edit#gid=255969581"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [
+            "Q1 — January to March"
+          ],
+          "schema": [
+            {
+              "id": "Date",
+              "displayName": "Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Type",
+              "displayName": "Type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Item",
+              "displayName": "Item",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Quantity",
+              "displayName": "Quantity",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Unit",
+              "displayName": "Unit",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Price",
+              "displayName": "Price",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Amount Paid",
+              "displayName": "Amount Paid",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Payor",
+              "displayName": "Payor",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Mode of Payment",
+              "displayName": "Mode of Payment",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "OR Number/\nBilling No.",
+              "displayName": "OR Number/\nBilling No.",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Date Issued",
+              "displayName": "Date Issued",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Issued by",
+              "displayName": "Issued by",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Source",
+              "displayName": "Source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "cellFormat": "USER_ENTERED",
+          "locationDefine": {
+            "values": {
+              "headerRow": 2
+            }
+          }
+        }
+      },
+      "id": "6edd4ac9-19bd-4ed7-bd6e-c8a73bb99dfa",
+      "name": "📗 Append → Q1 Report",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1984,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "10_mBqP8b1431MugGkhKv6HcqHoLyNQzN7uKcgTjln0M",
+          "mode": "list",
+          "cachedResultName": "Sales_Remittance_Report_v4_blank",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10_mBqP8b1431MugGkhKv6HcqHoLyNQzN7uKcgTjln0M/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1221437043,
+          "mode": "list",
+          "cachedResultName": "Q2 Report",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10_mBqP8b1431MugGkhKv6HcqHoLyNQzN7uKcgTjln0M/edit#gid=1221437043"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Date": "={{ $json.Date }}",
+            "Type": "={{ $json.Type }}",
+            "Item": "={{ $json.Item }}",
+            "Quantity": "={{ $json.Quantity }}",
+            "Unit": "={{ $json.Unit }}",
+            "Price": "={{ $json.Price }}",
+            "Amount Paid": "={{ $json['Amount Paid'] }}",
+            "Payor": "={{ $json.Payor }}",
+            "Mode of Payment": "={{ $json['Mode of Payment'] }}",
+            "OR Number/\nBilling No.": "={{ $json['OR Number'] }}",
+            "Date Issued": "={{ $json['Date Issued'] }}",
+            "Issued by": "={{ $json['Issued by'] }}",
+            "Source": "={{ $json.Source }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Date",
+              "displayName": "Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Type",
+              "displayName": "Type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Item",
+              "displayName": "Item",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Quantity",
+              "displayName": "Quantity",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Unit",
+              "displayName": "Unit",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Price",
+              "displayName": "Price",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Amount Paid",
+              "displayName": "Amount Paid",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Payor",
+              "displayName": "Payor",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Mode of Payment",
+              "displayName": "Mode of Payment",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "OR Number/\nBilling No.",
+              "displayName": "OR Number/\nBilling No.",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Date Issued",
+              "displayName": "Date Issued",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Issued by",
+              "displayName": "Issued by",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Source",
+              "displayName": "Source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "cellFormat": "USER_ENTERED",
+          "locationDefine": {
+            "values": {
+              "headerRow": 2
+            }
+          }
+        }
+      },
+      "id": "6c2c8ae7-4798-420f-96dd-df68c0242676",
+      "name": "📘 Append → Q2 Report",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1984,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "10_mBqP8b1431MugGkhKv6HcqHoLyNQzN7uKcgTjln0M",
+          "mode": "list",
+          "cachedResultName": "Sales_Remittance_Report_v4_blank",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10_mBqP8b1431MugGkhKv6HcqHoLyNQzN7uKcgTjln0M/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 674682901,
+          "mode": "list",
+          "cachedResultName": "Q3 Report",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10_mBqP8b1431MugGkhKv6HcqHoLyNQzN7uKcgTjln0M/edit#gid=674682901"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Date": "={{ $json.Date }}",
+            "Type": "={{ $json.Type }}",
+            "Item": "={{ $json.Item }}",
+            "Quantity": "={{ $json.Quantity }}",
+            "Unit": "={{ $json.Unit }}",
+            "Price": "={{ $json.Price }}",
+            "Amount Paid": "={{ $json['Amount Paid'] }}",
+            "Payor": "={{ $json.Payor }}",
+            "Mode of Payment": "={{ $json['Mode of Payment'] }}",
+            "OR Number/\nBilling No.": "={{ $json['OR Number'] }}",
+            "Date Issued": "={{ $json['Date Issued'] }}",
+            "Issued by": "={{ $json['Issued by'] }}",
+            "Source": "={{ $json.Source }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Date",
+              "displayName": "Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Type",
+              "displayName": "Type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Item",
+              "displayName": "Item",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Quantity",
+              "displayName": "Quantity",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Unit",
+              "displayName": "Unit",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Price",
+              "displayName": "Price",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Amount Paid",
+              "displayName": "Amount Paid",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Payor",
+              "displayName": "Payor",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Mode of Payment",
+              "displayName": "Mode of Payment",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "OR Number/\nBilling No.",
+              "displayName": "OR Number/\nBilling No.",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Date Issued",
+              "displayName": "Date Issued",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Issued by",
+              "displayName": "Issued by",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Source",
+              "displayName": "Source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "cellFormat": "USER_ENTERED",
+          "locationDefine": {
+            "values": {
+              "headerRow": 2
+            }
+          }
+        }
+      },
+      "id": "fae90818-910f-4295-8c93-d0dea9cfa439",
+      "name": "📙 Append → Q3 Report",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1984,
+        336
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "10_mBqP8b1431MugGkhKv6HcqHoLyNQzN7uKcgTjln0M",
+          "mode": "list",
+          "cachedResultName": "Sales_Remittance_Report_v4_blank",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10_mBqP8b1431MugGkhKv6HcqHoLyNQzN7uKcgTjln0M/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 992533754,
+          "mode": "list",
+          "cachedResultName": "Q4 Report",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10_mBqP8b1431MugGkhKv6HcqHoLyNQzN7uKcgTjln0M/edit#gid=992533754"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [
+            "Q4 — October to December"
+          ],
+          "schema": [
+            {
+              "id": "Date",
+              "displayName": "Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Type",
+              "displayName": "Type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Item",
+              "displayName": "Item",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Quantity",
+              "displayName": "Quantity",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Unit",
+              "displayName": "Unit",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Price",
+              "displayName": "Price",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Amount Paid",
+              "displayName": "Amount Paid",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Payor",
+              "displayName": "Payor",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Mode of Payment",
+              "displayName": "Mode of Payment",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "OR Number/\nBilling No.",
+              "displayName": "OR Number/\nBilling No.",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Date Issued",
+              "displayName": "Date Issued",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Issued by",
+              "displayName": "Issued by",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Source",
+              "displayName": "Source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "cellFormat": "USER_ENTERED",
+          "locationDefine": {
+            "values": {
+              "headerRow": 2
+            }
+          }
+        }
+      },
+      "id": "8c142cc6-54fc-4da7-862f-fefb134737a3",
+      "name": "📕 Append → Q4 Report",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1984,
+        496
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "10_mBqP8b1431MugGkhKv6HcqHoLyNQzN7uKcgTjln0M",
+          "mode": "list",
+          "cachedResultName": "Sales_Remittance_Report_v4_blank",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10_mBqP8b1431MugGkhKv6HcqHoLyNQzN7uKcgTjln0M/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 719160558,
+          "mode": "list",
+          "cachedResultName": "Monthly Report",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10_mBqP8b1431MugGkhKv6HcqHoLyNQzN7uKcgTjln0M/edit#gid=719160558"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Date": "={{ $json.Date }}",
+            "Type": "={{ $json.Type }}",
+            "Item": "={{ $json.Item }}",
+            "Quantity": "={{ $json.Quantity }}",
+            "Unit": "={{ $json.Unit }}",
+            "Price": "={{ $json.Price }}",
+            "Amount Paid": "={{ $json['Amount Paid'] }}",
+            "Payor": "={{ $json.Payor }}",
+            "Mode of Payment": "={{ $json['Mode of Payment'] }}",
+            "OR Number/\nBilling No.": "={{ $json['OR Number'] }}",
+            "Date Issued": "={{ $json['Date Issued'] }}",
+            "Issued by": "={{ $json['Issued by'] }}",
+            "Source": "={{ $json.Source }}"
+          }
+        },
+        "options": {
+          "cellFormat": "USER_ENTERED"
+        }
+      },
+      "id": "09a93a2b-1b05-4144-ad36-cf5f6ae73389",
+      "name": "📅 Append → Monthly Report",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2480,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Date Range Report",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Date": "={{ $json.Date }}",
+            "Type": "={{ $json.Type }}",
+            "Item": "={{ $json.Item }}",
+            "Quantity": "={{ $json.Quantity }}",
+            "Unit": "={{ $json.Unit }}",
+            "Price": "={{ $json.Price }}",
+            "Amount Paid": "={{ $json['Amount Paid'] }}",
+            "Payor": "={{ $json.Payor }}",
+            "Mode of Payment": "={{ $json['Mode of Payment'] }}",
+            "OR Number/\nBilling No.": "={{ $json['OR Number'] }}",
+            "Date Issued": "={{ $json['Date Issued'] }}",
+            "Issued by": "={{ $json['Issued by'] }}",
+            "Source": "={{ $json.Source }}"
+          }
+        },
+        "options": {
+          "cellFormat": "USER_ENTERED"
+        }
+      },
+      "id": "8adbc822-5714-4973-8ae1-21f2347eeb8f",
+      "name": "🗓️ Append → Date Range Report",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2480,
+        368
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Summary Report",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "C5": "=SUMIFS('Q1 Report'!G:G,'Q1 Report'!B:B,B5)",
+            "E5": "=SUMIFS('Q1 Report'!G:G,'Q1 Report'!B:B,B5)",
+            "F5": "=SUMIFS('Q2 Report'!D:D,'Q2 Report'!B:B,B5)",
+            "H5": "=SUMIFS('Q2 Report'!G:G,'Q2 Report'!B:B,B5)",
+            "I5": "=SUMIFS('Q3 Report'!D:D,'Q3 Report'!B:B,B5)",
+            "K5": "=SUMIFS('Q3 Report'!G:G,'Q3 Report'!B:B,B5)",
+            "L5": "=SUMIFS('Q4 Report'!D:D,'Q4 Report'!B:B,B5)",
+            "N5": "=SUMIFS('Q4 Report'!G:G,'Q4 Report'!B:B,B5)",
+            "O5": "=SUM(E5,H5,K5,N5)",
+            "E12": "=SUM(E5:E11)",
+            "H12": "=SUM(H5:H11)",
+            "K12": "=SUM(K5:K11)",
+            "N12": "=SUM(N5:N11)",
+            "O12": "=SUM(O5:O11)",
+            "E14": "=SUM(E12,E13)",
+            "H14": "=SUM(H12,H13)",
+            "K14": "=SUM(K12,K13)",
+            "N14": "=SUM(N12,N13)",
+            "O14": "=SUM(O12,O13)"
+          }
+        },
+        "options": {}
+      },
+      "id": "21761724-3e7f-4f17-840d-864a13aef6a9",
+      "name": "📊 Refresh Summary Formulas",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2752,
+        256
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "a022ff24-574b-4e75-afa8-8ec8f2fb1eef",
+      "name": "⏭️ Skip — No Date",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1520,
+        496
+      ]
+    },
+    {
+      "parameters": {
+        "numberInputs": 4
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        2256,
+        240
+      ],
+      "id": "0d80360f-8c71-4a7e-9391-01d3dd095dfd",
+      "name": "Merge1"
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "documentId": {
+          "__rl": true,
+          "value": "10_mBqP8b1431MugGkhKv6HcqHoLyNQzN7uKcgTjln0M",
+          "mode": "list",
+          "cachedResultName": "Sales_Remittance_Report_v4_blank",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10_mBqP8b1431MugGkhKv6HcqHoLyNQzN7uKcgTjln0M/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1103319920,
+          "mode": "list",
+          "cachedResultName": "Data Input",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10_mBqP8b1431MugGkhKv6HcqHoLyNQzN7uKcgTjln0M/edit#gid=1103319920"
+        },
+        "options": {
+          "dataLocationOnSheet": {
+            "values": {
+              "rangeDefinition": "specifyRangeA1",
+              "range": "A4:M97"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.googleSheetsTrigger",
+      "typeVersion": 1,
+      "position": [
+        944,
+        304
+      ],
+      "id": "1a157a21-b9f0-48dd-aece-91db73970866",
+      "name": "Google Sheets Trigger"
+    }
+  ],
+  "connections": {
+    "✅ Has Valid Date?": {
+      "main": [
+        [
+          {
+            "node": "📅 Get Quarter & Month",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "⏭️ Skip — No Date",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📅 Get Quarter & Month": {
+      "main": [
+        [
+          {
+            "node": "🔀 Route by Quarter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔀 Route by Quarter": {
+      "main": [
+        [
+          {
+            "node": "📗 Append → Q1 Report",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📘 Append → Q2 Report",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📙 Append → Q3 Report",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📕 Append → Q4 Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📗 Append → Q1 Report": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📘 Append → Q2 Report": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "📙 Append → Q3 Report": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "📕 Append → Q4 Report": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "📅 Append → Monthly Report": {
+      "main": [
+        [
+          {
+            "node": "📊 Refresh Summary Formulas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🗓️ Append → Date Range Report": {
+      "main": [
+        [
+          {
+            "node": "📊 Refresh Summary Formulas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge1": {
+      "main": [
+        [
+          {
+            "node": "📅 Append → Monthly Report",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "🗓️ Append → Date Range Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets Trigger": {
+      "main": [
+        [
+          {
+            "node": "✅ Has Valid Date?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "meta": null,
+  "versionId": "c9da9ab0-3a3c-40db-93a1-19495cdb0335",
+  "activeVersionId": null,
+  "triggerCount": 0,
+  "shared": [
+    {
+      "updatedAt": "2026-03-23T14:27:44.472Z",
+      "createdAt": "2026-03-23T14:27:44.472Z",
+      "role": "workflow:owner",
+      "workflowId": "vQet7tCZKBk74XTd",
+      "projectId": "K0EgCP5sbv56N9ed"
+    }
+  ],
+  "activeVersion": null,
+  "tags": []
+}
