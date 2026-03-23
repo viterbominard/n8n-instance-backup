@@ -1,0 +1,146 @@
+{
+  "updatedAt": "2026-03-23T14:28:32.366Z",
+  "createdAt": "2026-03-23T14:28:32.366Z",
+  "id": "0qUCHgkOlehTa6aR",
+  "name": "facebook-automation",
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours"
+            }
+          ]
+        }
+      },
+      "id": "fa8404fa-22bc-4d47-afdd-b5aeb6a60a77",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -240,
+        -304
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "application": {
+          "__rl": true,
+          "value": "YOUR_BASE_ID_HERE",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "Posts",
+          "mode": "name"
+        }
+      },
+      "id": "f2ba5d24-6364-43a7-b40a-6ddf0ff7b405",
+      "name": "Get Posts from Airtable",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 1,
+      "position": [
+        -16,
+        -304
+      ]
+    },
+    {
+      "parameters": {
+        "node": "me/photos",
+        "options": {}
+      },
+      "id": "75271175-26b3-45a8-9e21-a0b6f50fb811",
+      "name": "Post Image to Facebook",
+      "type": "n8n-nodes-base.facebookGraphApi",
+      "typeVersion": 1,
+      "position": [
+        208,
+        -304
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "application": {
+          "__rl": true,
+          "value": "YOUR_BASE_ID_HERE",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "Posts",
+          "mode": "name"
+        },
+        "id": "={{ $('Get Posts from Airtable').item.json.id }}",
+        "options": {}
+      },
+      "id": "77937756-ee8d-4179-908a-9971b8957a3d",
+      "name": "Update Airtable Status",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 1,
+      "position": [
+        432,
+        -304
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Posts from Airtable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Posts from Airtable": {
+      "main": [
+        [
+          {
+            "node": "Post Image to Facebook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post Image to Facebook": {
+      "main": [
+        [
+          {
+            "node": "Update Airtable Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "meta": null,
+  "versionId": "e01133b7-fc31-4632-acbc-978a7cac3344",
+  "activeVersionId": null,
+  "triggerCount": 0,
+  "shared": [
+    {
+      "updatedAt": "2026-03-23T14:28:32.368Z",
+      "createdAt": "2026-03-23T14:28:32.368Z",
+      "role": "workflow:owner",
+      "workflowId": "0qUCHgkOlehTa6aR",
+      "projectId": "K0EgCP5sbv56N9ed"
+    }
+  ],
+  "activeVersion": null,
+  "tags": []
+}
