@@ -1,0 +1,305 @@
+{
+  "updatedAt": "2026-03-24T01:34:09.667Z",
+  "createdAt": "2026-03-23T14:28:32.366Z",
+  "id": "0qUCHgkOlehTa6aR",
+  "name": "Facebook Auto Post — Morning (7 AM)",
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 7 * * *"
+            }
+          ]
+        }
+      },
+      "id": "66070703-cfd1-4e59-ad43-d00c6c41ef4e",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        1408,
+        704
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "list",
+        "base": {
+          "__rl": true,
+          "value": "YOUR_AIRTABLE_BASE_ID",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "YOUR_AIRTABLE_TABLE_ID",
+          "mode": "id"
+        }
+      },
+      "id": "b16506fc-4783-4e9a-a314-aea759b3c1a9",
+      "name": "Airtable — Get Morning Record",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [
+        1632,
+        704
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "IBXpf8B1wP0Pw8oK",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition-001",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "19df5902-f8f9-47c7-b171-293fa58762f7",
+      "name": "IF — Record Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1856,
+        704
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Airtable — Get Morning Record').item.json.fields.Image[0].url }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "a01694b5-2b39-4726-9f85-d531106ff48a",
+      "name": "HTTP — Download Image",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2064,
+        624
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v19.0/YOUR_PAGE_ID/photos",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer YOUR_PAGE_ACCESS_TOKEN"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "source",
+              "inputDataFieldName": "data"
+            },
+            {
+              "name": "caption",
+              "value": "={{ $('Airtable — Get Morning Record').item.json.fields.Caption }}"
+            },
+            {
+              "name": "published",
+              "value": "true"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5597e968-e376-46f9-ac98-391f69646c32",
+      "name": "HTTP — Post to Facebook",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2288,
+        624
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const fbResponse = $('HTTP — Post to Facebook').item.json;\n\n// Facebook returns either post_id or id depending on the endpoint\nconst rawId = fbResponse.post_id || fbResponse.id || '';\n\n// post_id format is PageID_PostID — use it directly as the permalink\nconst postLink = rawId ? `https://www.facebook.com/${rawId}` : '';\n\nreturn [{ json: { postLink } }];"
+      },
+      "id": "81e44993-e8f5-4c4e-8c90-f79d76ae08a6",
+      "name": "Build Post Link",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2496,
+        624
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "YOUR_AIRTABLE_BASE_ID",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "YOUR_AIRTABLE_TABLE_ID",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "id": "9b0c5928-190b-46fc-8f62-ffc0f9118eac",
+      "name": "Airtable — Mark as Published",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [
+        2704,
+        624
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "IBXpf8B1wP0Pw8oK",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "2f11431c-cd93-4192-a777-18015c034c2d",
+      "name": "Stop — No Record",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2064,
+        832
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Airtable — Get Morning Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Airtable — Get Morning Record": {
+      "main": [
+        [
+          {
+            "node": "IF — Record Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF — Record Found?": {
+      "main": [
+        [
+          {
+            "node": "HTTP — Download Image",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Stop — No Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP — Download Image": {
+      "main": [
+        [
+          {
+            "node": "HTTP — Post to Facebook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP — Post to Facebook": {
+      "main": [
+        [
+          {
+            "node": "Build Post Link",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Post Link": {
+      "main": [
+        [
+          {
+            "node": "Airtable — Mark as Published",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "versionId": "cd5e0429-52db-495e-ac0d-c100079d0ec1",
+  "activeVersionId": null,
+  "triggerCount": 0,
+  "shared": [
+    {
+      "updatedAt": "2026-03-23T14:28:32.368Z",
+      "createdAt": "2026-03-23T14:28:32.368Z",
+      "role": "workflow:owner",
+      "workflowId": "0qUCHgkOlehTa6aR",
+      "projectId": "K0EgCP5sbv56N9ed"
+    }
+  ],
+  "activeVersion": null,
+  "tags": []
+}
