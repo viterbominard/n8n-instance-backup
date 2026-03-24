@@ -4,8 +4,8 @@
     "file_path": "workflows/github-backup.json"
   },
   "0qUCHgkOlehTa6aR": {
-    "name": "facebook-automation",
-    "file_path": "workflows/facebook-automation.json"
+    "name": "Facebook Auto Post — Morning (7 AM)",
+    "file_path": "workflows/Facebook Auto Post — Morning (7 AM).json"
   },
   "vQet7tCZKBk74XTd": {
     "name": "Generation-of-Report",
