@@ -10,5 +10,9 @@
   "vQet7tCZKBk74XTd": {
     "name": "Generation-of-Report",
     "file_path": "workflows/Generation-of-Report.json"
+  },
+  "vAsqWdLjXKlsmNgI": {
+    "name": "The \"Zero-Touch\" Client Onboarding Engine",
+    "file_path": "workflows/The \"Zero-Touch\" Client Onboarding Engine.json"
   }
 }
